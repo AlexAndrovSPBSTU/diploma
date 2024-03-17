@@ -1,12 +1,11 @@
-package com.example.util;
+package com.example.diploma.util;
 
-import com.example.constants.ProjectConstants;
-import com.example.models.Data;
+import com.example.diploma.models.Data;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.NumberFormat;
@@ -15,34 +14,33 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Component
 public class XlsToProductListParser {
-    private static final NumberFormat format = NumberFormat.getInstance(Locale.FRANCE);
 
-    public List<Data> getProducts() {
+    public List<Data> getProducts(MultipartFile multipartFile) {
         try {
-            List<Data> data = parseToProducts(getData());
-            return data;
+            return parseToProducts(getData(multipartFile));
         } catch (IOException | ParseException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static final SimpleDateFormat INPUT_DATE_FORMAT = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.ENGLISH);
     private static final SimpleDateFormat OUTPUT_DATE_FORMAT = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy H:mm:ss");
 
-    private static Map<Integer, List<String>> getData() throws IOException, ParseException {
+    private static Map<Integer, List<String>> getData(MultipartFile multipartFile) throws IOException, ParseException {
         Map<Integer, List<String>> data = new HashMap<>();
 
-        try (InputStream inputStream = new FileInputStream(ProjectConstants.path)) {
+        try (InputStream inputStream = multipartFile.getInputStream()) {
             Workbook workbook = new XSSFWorkbook(inputStream);
             Sheet sheet = workbook.getSheetAt(0);
 
             Iterator<Row> rowIterator = sheet.rowIterator();
+
+            rowIterator.next();
+            rowIterator.next();
+            rowIterator.next();
 
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
@@ -57,33 +55,36 @@ public class XlsToProductListParser {
                         rowData.add(cell.toString());
                     }
                 }
-
                 data.put(row.getRowNum(), rowData);
             }
-
             workbook.close();
         }
+
 
         return data;
     }
 
     private static List<Data> parseToProducts(Map<Integer, List<String>> data) {
-        return data.values()
-                .stream()
-                .map(cellData -> Data.builder()
-                        .time(LocalDateTime.parse(cellData.get(0), formatter))
-                        .masutPresure(parseDouble(cellData.get(1)))
-                        .masutConsumtion(parseDouble(cellData.get(2)))
-                        .steamCapacity(parseDouble(cellData.get(3)))
-                        .build())
-                .collect(Collectors.toList());
+        Set<Integer> keys = data.keySet();
+        List<Data> result = new ArrayList<>();
+        for (int key : keys) {
+            List<String> dataList = data.get(key);
+            if (dataList.size() == 4) {
+                result.add(Data.builder()
+                        .time(LocalDateTime.parse(dataList.get(0), formatter))
+                        .masutPresure(parseDouble(dataList.get(1)))
+                        .masutConsumtion(parseDouble(dataList.get(2)))
+                        .steamCapacity(parseDouble(dataList.get(3)))
+                        .build());
+            }
+        }
+        return result;
     }
 
     private static Double parseDouble(String value) {
         try {
             return Double.parseDouble(value);
         } catch (NumberFormatException e) {
-            System.out.println(value);
             return 0.0;
         }
     }
