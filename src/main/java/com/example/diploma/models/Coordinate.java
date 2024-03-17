@@ -1,4 +1,4 @@
-package com.example.models;
+package com.example.diploma.models;
 
 import lombok.*;
 
